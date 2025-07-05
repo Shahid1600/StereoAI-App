@@ -1,0 +1,5 @@
+streamlit
+rdkit-pypi
+py3Dmol
+requests
+chempy
