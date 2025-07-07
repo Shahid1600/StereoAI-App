@@ -1,6 +1,7 @@
 streamlit
-rdkit
+rdkit-pypi
 pandas
 numpy
 matplotlib
-
+py3Dmol
+requests

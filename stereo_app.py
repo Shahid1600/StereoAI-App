@@ -1,12 +1,28 @@
 import streamlit as st
+from PIL import Image
+import base64
+import os
+
+# Logo display
+logo_path = "logo.png"
+if os.path.exists(logo_path):
+    logo = Image.open(logo_path)
+    st.image(logo, width=180)
+
+# Optional App Title
+st.markdown("<h1 style='text-align: center; color: #4CAF50;'>StereoAI: Stereochemistry & Drug Analysis</h1>", unsafe_allow_html=True)
+st.markdown("---")
+
 from rdkit import Chem
 from rdkit.Chem import Descriptors, Draw, AllChem, rdMolDescriptors, Crippen
 from rdkit import DataStructs
 import py3Dmol
 import requests
 from chempy import balance_stoichiometry
-from itertools import permutations
-import re  
+import re
+import pandas as pd
+import numpy as np
+from io import BytesIO
 
 # Set page config
 st.set_page_config(page_title="StereoAI Chem Pro", layout="wide")
@@ -27,7 +43,9 @@ if smiles:
         else:
             Chem.AssignStereochemistry(mol, force=True, cleanIt=True)
 
-            st.image(Draw.MolToImage(mol, size=(400, 400)), caption="Structure Preview")
+            # Use BytesIO to handle image in memory
+            img = Draw.MolToImage(mol, size=(400, 400))
+            st.image(img, caption="Structure Preview")
 
             formula = rdMolDescriptors.CalcMolFormula(mol)
             st.subheader("📜 Molecular Formula")
@@ -315,13 +333,10 @@ if stereo_smiles:
 
     except Exception as e:
         st.error(f"❌ Error analyzing stereoisomerism: {e}")
-# ✅ Feature added to replace Structural Isomer Generator
+
+# ---------------------------------------------
 # 🔬 Elemental Composition Analyzer
-
-import streamlit as st
-import re
-from rdkit.Chem import Descriptors
-
+# ---------------------------------------------
 st.header("🔬 Elemental Composition Analyzer")
 st.write("Enter a molecular formula (e.g., C8H10N4O2) to calculate atomic composition and total molecular weight.")
 
@@ -359,13 +374,10 @@ if formula_input:
 
     except Exception as e:
         st.error(f"❌ Error analyzing formula: {e}")
+
 # ---------------------------------------------
 # 💧 Molecule Polarity Predictor
 # ---------------------------------------------
-import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import rdMolDescriptors, Descriptors, Crippen
-
 st.header("💧 Molecule Polarity Predictor")
 st.write("Enter a SMILES string to estimate whether the molecule is likely polar or non-polar based on LogP and TPSA.")
 
@@ -391,763 +403,280 @@ if polarity_smiles:
             st.error("❌ Invalid SMILES string.")
     except Exception as e:
         st.error(f"⚠️ Error analyzing polarity: {e}")
-        # ✅ Test Set for Polarity Predictor and Drug-Likeness Checker
 
-# 📘 Use these SMILES strings to test your app's polarity and drug-likeness prediction modules.
-
-# ------------------------------
-# ✅ Polar and Non-Polar Molecule Test Set
-polarity_test_set = [
-    {"compound": "Water", "smiles": "O", "expected": "Polar"},
-    {"compound": "Methanol", "smiles": "CO", "expected": "Polar"},
-    {"compound": "Acetic Acid", "smiles": "CC(=O)O", "expected": "Polar"},
-    {"compound": "Ammonia", "smiles": "N", "expected": "Polar"},
-    {"compound": "Formaldehyde", "smiles": "C=O", "expected": "Polar"},
-    {"compound": "Benzene", "smiles": "c1ccccc1", "expected": "Non-polar"},
-    {"compound": "Hexane", "smiles": "CCCCCC", "expected": "Non-polar"},
-    {"compound": "Toluene", "smiles": "Cc1ccccc1", "expected": "Slightly polar"},
-    {"compound": "Chloroform", "smiles": "ClC(Cl)Cl", "expected": "Polar"},
-    {"compound": "Carbon Tetrachloride", "smiles": "ClC(Cl)(Cl)Cl", "expected": "Non-polar"},
-]
-
-# ------------------------------
-# 💊 Drug-Likeness & Lipinski Rule Test Set
-drug_likeness_test_set = [
-    {
-        "compound": "Aspirin",
-        "smiles": "CC(=O)Oc1ccccc1C(=O)O",
-        "mw": "~180",
-        "logp": "<5",
-        "hba": 4,
-        "hbd": 1,
-        "lipinski_pass": True,
-    },
-    {
-        "compound": "Paracetamol",
-        "smiles": "CC(=O)Nc1ccc(O)cc1",
-        "mw": "~151",
-        "logp": "<5",
-        "hba": 3,
-        "hbd": 2,
-        "lipinski_pass": True,
-    },
-    {
-        "compound": "Morphine",
-        "smiles": "CN1CCC23C4C1CC(C2)C5=C3C(=C(C=C5)O)O4",
-        "mw": "~285",
-        "logp": "<5",
-        "hba": 5,
-        "hbd": 3,
-        "lipinski_pass": True,
-    },
-    {
-        "compound": "Erythromycin",
-        "smiles": "CCC(C)C1CCC(C(C1C)OC2CC(C(C(O2)C)OC)O)OC",
-        "mw": ">500",
-        "logp": ">5",
-        "hba": ">10",
-        "hbd": ">5",
-        "lipinski_pass": False,
-    },
-    {
-        "compound": "Methotrexate",
-        "smiles": "CN(C)C(=O)CN1C=NC2=C1N=CN=C2N",
-        "mw": "~454",
-        "logp": "<5",
-        "hba": ">10",
-        "hbd": 5,
-        "lipinski_pass": False,
-    },
-]
+# ---------------------------------------------
 # 🧪 Toxicity & Drug-Likeness Analyzer
-import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import QED, Crippen, Descriptors
+# ---------------------------------------------
+st.header("☠️ Toxicity & Drug-Likeness Analyzer")
+st.write("Enter a SMILES string to analyze toxicity and drug-likeness properties.")
 
-st.subheader("☠️ Toxicity & Drug-Likeness Analyzer")
-smiles = st.text_input("Enter SMILES for Analysis:")
+toxicity_smiles = st.text_input("Enter SMILES for Toxicity Analysis:", "CC(=O)OC1=CC=CC=C1C(=O)O")
 
-if smiles:
-    mol = Chem.MolFromSmiles(smiles)
-    if mol:
-        # QED Score
-        qed_score = QED.qed(mol)
-
-        # Lipinski Rule of 5
-        mw = Descriptors.MolWt(mol)
-        logp = Crippen.MolLogP(mol)
-        hba = Chem.rdMolDescriptors.CalcNumHBA(mol)
-        hbd = Chem.rdMolDescriptors.CalcNumHBD(mol)
-        lipinski_pass = (mw <= 500 and logp <= 5 and hba <= 10 and hbd <= 5)
-
-        # Toxicity Flags (simple substructure check)
-        toxic_alerts = {
-            "Nitro group (mutagenic)": "[NX3](=O)=O",
-            "Aromatic amine": "cN",
-            "Halogen (Cl, Br, F, I)": "[Cl,Br,F,I]",
-            "Aldehyde": "[CX3H1](=O)[#6]",
-        }
-
-        flagged = []
-        for name, smarts in toxic_alerts.items():
-            patt = Chem.MolFromSmarts(smarts)
-            if mol.HasSubstructMatch(patt):
-                flagged.append(name)
-
-        st.markdown(f"**💊 QED Score:** {qed_score:.2f} → {'Drug-like' if qed_score > 0.5 else 'Low drug-likeness'}")
-        st.markdown(f"**🧬 Lipinski Rule of 5:** {'✅ Pass' if lipinski_pass else '❌ Fail'}")
-        st.markdown("**☢️ Toxicity Alerts:**")
-        if flagged:
-            for alert in flagged:
-                st.markdown(f"- ⚠️ {alert}")
-        else:
-            st.markdown("- ✅ No major toxicity substructures found")
-    else:
-        st.error("Invalid SMILES string.")
-#import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import Descriptors, Crippen, rdMolDescriptors
-import math
-
-st.header("💧 Solubility Estimator")
-
-smiles = st.text_input("Enter SMILES for Solubility Prediction:")
-
-def estimate_logS(mol):
-    logP = Crippen.MolLogP(mol)
-    mw = Descriptors.MolWt(mol)
-    hba = rdMolDescriptors.CalcNumHBA(mol)
-    hbd = rdMolDescriptors.CalcNumHBD(mol)
-    tpsa = rdMolDescriptors.CalcTPSA(mol)
-
-    # Simple LogS approximation formula (based on Delaney, 2004)
-    logS = 0.16 - 0.63 * logP - 0.0062 * mw + 0.066 * hbd - 0.74
-    return logS, logP, mw, hbd, hba, tpsa
-
-def classify_solubility(logS):
-    if logS > -2:
-        return "💧 Soluble"
-    elif logS > -4:
-        return "🌥️ Moderately soluble"
-    else:
-        return "❌ Poorly soluble"
-
-if smiles:
-    mol = Chem.MolFromSmiles(smiles)
-    if mol:
-        logS, logP, mw, hbd, hba, tpsa = estimate_logS(mol)
-
-        st.subheader("🔍 Solubility Metrics")
-        st.markdown(f"**LogP**: {logP:.2f}")
-        st.markdown(f"**Molecular Weight**: {mw:.2f} g/mol")
-        st.markdown(f"**HBD**: {hbd}, **HBA**: {hba}, **TPSA**: {tpsa:.2f} Å²")
-
-        st.subheader("📘 Solubility Estimation")
-        st.markdown(f"**Estimated LogS**: {logS:.2f}")
-        st.success(classify_solubility(logS))
-    else:
-        st.error("❌ Invalid SMILES string.")
-import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import Descriptors, Crippen, rdMolDescriptors
-
-
-#import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import Descriptors, Crippen, rdMolDescriptors
-
-st.markdown("""
-## 💊 Bioavailability Checker
-Enter a SMILES string to check if the compound is likely orally bioavailable using **Lipinski's Rule of Five**.
-""")
-
-smiles = st.text_input("SMILES Input", "")
-
-if smiles:
+if toxicity_smiles:
     try:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            st.error("Invalid SMILES string.")
-        else:
+        mol = Chem.MolFromSmiles(toxicity_smiles)
+        if mol:
+            # Calculate properties
             mw = Descriptors.MolWt(mol)
             logp = Crippen.MolLogP(mol)
-            hbd = rdMolDescriptors.CalcNumHBD(mol)
             hba = rdMolDescriptors.CalcNumHBA(mol)
+            hbd = rdMolDescriptors.CalcNumHBD(mol)
+            rot_bonds = Descriptors.NumRotatableBonds(mol)
+            tpsa = rdMolDescriptors.CalcTPSA(mol)
+            
+            # Lipinski's Rule of Five
+            lipinski_pass = (mw <= 500 and logp <= 5 and hbd <= 5 and hba <= 10)
+            
+            # Toxicity alerts (simple substructure matching)
+            toxic_patterns = {
+                "Nitro group": "[NX3](=O)=O",
+                "Aromatic amine": "cN",
+                "Michael acceptor": "C=CC=O",
+                "Epoxide": "C1OC1",
+                "Thiol": "SH"
+            }
+            
+            toxic_alerts = []
+            for name, smarts in toxic_patterns.items():
+                patt = Chem.MolFromSmarts(smarts)
+                if patt is not None and mol.HasSubstructMatch(patt):
+                    toxic_alerts.append(name)
+            
+            st.subheader("📊 Molecular Properties")
+            st.write(f"**Molecular Weight:** {mw:.2f} g/mol")
+            st.write(f"**LogP:** {logp:.2f}")
+            st.write(f"**H-bond Donors:** {hbd}")
+            st.write(f"**H-bond Acceptors:** {hba}")
+            st.write(f"**Rotatable Bonds:** {rot_bonds}")
+            st.write(f"**TPSA:** {tpsa:.2f} Å²")
+            
+            st.subheader("💊 Drug-Likeness")
+            st.write(f"**Lipinski's Rule of Five:** {'✅ Pass' if lipinski_pass else '❌ Fail'}")
+            
+            st.subheader("☠️ Toxicity Alerts")
+            if toxic_alerts:
+                for alert in toxic_alerts:
+                    st.warning(f"⚠️ {alert}")
+            else:
+                st.success("✅ No major toxicity alerts detected")
+                
+        else:
+            st.error("❌ Invalid SMILES string.")
+    except Exception as e:
+        st.error(f"⚠️ Error in analysis: {e}")
 
+
+# ---------------------------------------------
+# 💧 Solubility Estimator
+# ---------------------------------------------
+st.header("💧 Solubility Estimator")
+st.write("Enter a SMILES string to estimate aqueous solubility.")
+
+solubility_smiles = st.text_input("Enter SMILES for Solubility Estimation:", "CCO")
+
+if solubility_smiles:
+    try:
+        mol = Chem.MolFromSmiles(solubility_smiles)
+        if mol:
+            # Simple solubility estimation based on descriptors
+            logp = Crippen.MolLogP(mol)
+            mw = Descriptors.MolWt(mol)
+            hbd = rdMolDescriptors.CalcNumHBD(mol)
+            tpsa = rdMolDescriptors.CalcTPSA(mol)
+            
+            # Simplified solubility model (for demonstration)
+            logS = 0.5 - 0.75*logp - 0.01*mw + 0.1*hbd + 0.005*tpsa
+            
+            st.subheader("🔍 Solubility Metrics")
+            st.write(f"**LogP:** {logp:.2f}")
+            st.write(f"**Molecular Weight:** {mw:.2f} g/mol")
+            st.write(f"**H-bond Donors:** {hbd}")
+            st.write(f"**TPSA:** {tpsa:.2f} Å²")
+            
+            st.subheader("📘 Solubility Estimation")
+            st.write(f"**Predicted LogS:** {logS:.2f}")
+            
+            if logS > -4:
+                st.success("💧 Good solubility (LogS > -4)")
+            elif logS > -6:
+                st.warning("🌫 Moderate solubility (-6 < LogS ≤ -4)")
+            else:
+                st.error("❌ Poor solubility (LogS ≤ -6)")
+                
+        else:
+            st.error("❌ Invalid SMILES string.")
+    except Exception as e:
+        st.error(f"⚠️ Error in solubility estimation: {e}")
+
+# ---------------------------------------------
+# 💊 Bioavailability Checker
+# ---------------------------------------------
+st.header("💊 Bioavailability Checker")
+st.write("Check if a molecule is likely to be orally bioavailable using Lipinski's Rule of Five.")
+
+bioavailability_smiles = st.text_input("Enter SMILES for Bioavailability Check:", "CC(=O)NC1=CC=C(C=C1)O")
+
+if bioavailability_smiles:
+    try:
+        mol = Chem.MolFromSmiles(bioavailability_smiles)
+        if mol:
+            # Calculate properties
+            mw = Descriptors.MolWt(mol)
+            logp = Crippen.MolLogP(mol)
+            hba = rdMolDescriptors.CalcNumHBA(mol)
+            hbd = rdMolDescriptors.CalcNumHBD(mol)
+            
+            # Lipinski's Rule of Five
             rule1 = mw <= 500
             rule2 = logp <= 5
             rule3 = hbd <= 5
             rule4 = hba <= 10
+            
             passed_rules = sum([rule1, rule2, rule3, rule4])
+            
+            st.subheader("📊 Molecular Properties")
+            st.write(f"**Molecular Weight:** {mw:.2f} g/mol {'✅' if rule1 else '❌'}")
+            st.write(f"**LogP:** {logp:.2f} {'✅' if rule2 else '❌'}")
+            st.write(f"**H-bond Donors:** {hbd} {'✅' if rule3 else '❌'}")
+            st.write(f"**H-bond Acceptors:** {hba} {'✅' if rule4 else '❌'}")
+            
+            st.subheader("💊 Bioavailability Prediction")
+            if passed_rules == 4:
+                st.success("✅ Likely orally bioavailable (passes all 4 rules)")
+            elif passed_rules >= 3:
+                st.warning("⚠️ Possibly bioavailable (passes 3/4 rules)")
+            else:
+                st.error("❌ Unlikely to be orally bioavailable (fails 2+ rules)")
+                
+        else:
+            st.error("❌ Invalid SMILES string.")
+    except Exception as e:
+        st.error(f"⚠️ Error in analysis: {e}")
 
-            st.subheader("🔍 Molecular Properties")
+# ---------------------------------------------
+# 🧠 Blood-Brain Barrier (BBB) Permeability Predictor
+# ---------------------------------------------
+st.header("🧠 Blood-Brain Barrier (BBB) Permeability Predictor")
+st.write("Estimate if a compound can cross the blood-brain barrier based on molecular properties.")
+
+bbb_smiles = st.text_input("Enter SMILES for BBB Prediction:", "CN1CCC23C4C1CC5=C2C(=C(C=C5)O)C3C4=O")
+
+if bbb_smiles:
+    try:
+        mol = Chem.MolFromSmiles(bbb_smiles)
+        if mol:
+            # Calculate properties
+            logp = Crippen.MolLogP(mol)
+            tpsa = rdMolDescriptors.CalcTPSA(mol)
+            mw = Descriptors.MolWt(mol)
+            
+            # Simple BBB permeability rules
+            bbb_permeable = (logp > 0.9) and (tpsa < 90) and (mw < 450)
+            
+            st.subheader("🔍 BBB Permeability Metrics")
+            st.write(f"**LogP:** {logp:.2f} (should be > 0.9)")
+            st.write(f"**TPSA:** {tpsa:.2f} Å² (should be < 90)")
+            st.write(f"**Molecular Weight:** {mw:.2f} g/mol (should be < 450)")
+            
+            st.subheader("🧠 BBB Permeability Prediction")
+            if bbb_permeable:
+                st.success("✅ Likely to cross the blood-brain barrier")
+            else:
+                st.warning("⚠️ Unlikely to cross the blood-brain barrier")
+                
+        else:
+            st.error("❌ Invalid SMILES string.")
+    except Exception as e:
+        st.error(f"⚠️ Error in analysis: {e}")
+
+# ---------------------------------------------
+# ⚗️ Chemical Stability Estimator
+# ---------------------------------------------
+st.header("⚗️ Chemical Stability Estimator")
+st.write("Estimate the chemical stability of a molecule based on molecular properties.")
+
+stability_smiles = st.text_input("Enter SMILES for Stability Estimation:", "C1=CC=CC=C1")
+
+if stability_smiles:
+    try:
+        mol = Chem.MolFromSmiles(stability_smiles)
+        if mol:
+            # Calculate properties
+            logp = Crippen.MolLogP(mol)
+            tpsa = rdMolDescriptors.CalcTPSA(mol)
+            rot_bonds = Descriptors.NumRotatableBonds(mol)
+            aromatic_rings = rdMolDescriptors.CalcNumAromaticRings(mol)
+            
+            # Simple stability score (higher is more stable)
+            stability_score = 0.5*(5 - logp) + 0.2*(100 - tpsa)/10 + 0.2*(10 - rot_bonds) + 0.1*aromatic_rings*2
+            
+            st.subheader("🔍 Stability Metrics")
+            st.write(f"**LogP:** {logp:.2f} (moderate values preferred)")
+            st.write(f"**TPSA:** {tpsa:.2f} Å² (lower may be more stable)")
+            st.write(f"**Rotatable Bonds:** {rot_bonds} (fewer may be more stable)")
+            st.write(f"**Aromatic Rings:** {aromatic_rings} (more may increase stability)")
+            
+            st.subheader("⚗️ Stability Estimation")
+            st.write(f"**Stability Score:** {stability_score:.2f}/10")
+            
+            if stability_score > 7:
+                st.success("✅ Likely chemically stable")
+            elif stability_score > 5:
+                st.warning("⚠️ Moderate stability")
+            else:
+                st.error("❌ Potentially unstable")
+                
+        else:
+            st.error("❌ Invalid SMILES string.")
+    except Exception as e:
+        st.error(f"⚠️ Error in analysis: {e}")
+
+# ---------------------------------------------
+# 🧬 QSAR Property Estimator
+# ---------------------------------------------
+st.header("🧬 QSAR Property Estimator")
+st.write("Estimate molecular properties using quantitative structure-activity relationship models.")
+
+qsar_smiles = st.text_input("Enter SMILES for QSAR Estimation:", "CC(=O)NC1=CC=C(C=C1)O")
+
+if qsar_smiles:
+    try:
+        mol = Chem.MolFromSmiles(qsar_smiles)
+        if mol:
+            # Calculate descriptors
+            mw = Descriptors.MolWt(mol)
+            logp = Crippen.MolLogP(mol)
+            hba = rdMolDescriptors.CalcNumHBA(mol)
+            hbd = rdMolDescriptors.CalcNumHBD(mol)
+            tpsa = rdMolDescriptors.CalcTPSA(mol)
+            aromatic_rings = rdMolDescriptors.CalcNumAromaticRings(mol)
+            
+            # Mock QSAR predictions (replace with actual models)
+            pIC50 = 5.2 + 0.1*logp - 0.01*mw + 0.5*hbd - 0.2*hba + 0.05*tpsa
+            solubility = 0.5 - 0.75*logp - 0.01*mw + 0.1*hbd + 0.005*tpsa
+            permeability = 0.6 + 0.2*logp - 0.001*tpsa - 0.005*mw
+            
+            st.subheader("📊 Molecular Descriptors")
             st.write(f"**Molecular Weight:** {mw:.2f} g/mol")
             st.write(f"**LogP:** {logp:.2f}")
-            st.write(f"**HBD:** {hbd}, **HBA:** {hba}")
-
-            st.subheader("📘 Lipinski Rule Evaluation")
-            st.write(f"Passed {passed_rules}/4 rules")
-
-            if passed_rules == 4:
-                st.success("✅ Likely orally bioavailable")
-            elif passed_rules >= 2:
-                st.warning("⚠️ Possibly bioavailable, but not optimal")
-            else:
-                st.error("❌ Unlikely to be orally bioavailable")
-
+            st.write(f"**H-bond Donors:** {hbd}")
+            st.write(f"**H-bond Acceptors:** {hba}")
+            st.write(f"**TPSA:** {tpsa:.2f} Å²")
+            st.write(f"**Aromatic Rings:** {aromatic_rings}")
+            
+            st.subheader("📈 QSAR Predictions")
+            st.write(f"**Predicted pIC50:** {pIC50:.2f}")
+            st.write(f"**Predicted LogS (solubility):** {solubility:.2f}")
+            st.write(f"**Predicted Permeability:** {permeability:.2f}")
+            
+        else:
+            st.error("❌ Invalid SMILES string.")
     except Exception as e:
-        st.error(f"Error occurred: {str(e)}")
-import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import Crippen, rdMolDescriptors
-
-st.markdown("## 🧪 Blood-Brain Barrier (BBB) Permeability Predictor")
-st.write("Estimate if a compound can cross the BBB based on LogP and Polar Surface Area (PSA).")
-
-smiles = st.text_input("Enter SMILES for BBB Prediction")
-
-if smiles:
-    mol = Chem.MolFromSmiles(smiles)
-    if mol:
-        logp = Crippen.MolLogP(mol)
-        tpsa = rdMolDescriptors.CalcTPSA(mol)
-
-        st.subheader("🔍 BBB Prediction Metrics")
-        st.write(f"**LogP:** {logp:.2f}")
-        st.write(f"**TPSA:** {tpsa:.2f} Å²")
-
-        # Heuristic criteria for BBB permeability:
-        if logp > 0.9 and tpsa < 90:
-            st.success("🧠 Likely to cross the blood-brain barrier.")
-        else:
-            st.warning("❌ Unlikely to cross the blood-brain barrier.")
-    else:
-        st.error("❌ Invalid SMILES string.")
-import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import Descriptors, Crippen, rdMolDescriptors
-
-st.markdown("## ⚗️ Chemical Stability Estimator")
-st.write("Enter a SMILES string to estimate chemical stability based on molecular descriptors.")
-
-smiles = st.text_input("SMILES Input", key="stability_smiles")
-
-def estimate_stability(mol):
-    # Example: Use simple rules based on LogP and number of rotatable bonds
-    logp = Crippen.MolLogP(mol)
-    rot_bonds = rdMolDescriptors.CalcNumRotatableBonds(mol)
-
-    # Simple heuristic:
-    # Higher LogP (>5) means more hydrophobic, often less stable in aqueous environments
-    # More rotatable bonds (>10) may indicate less stability (flexibility)
-    stability_score = 10 - (logp + rot_bonds * 0.5)  # arbitrary scoring for demo
-    return stability_score, logp, rot_bonds
-
-if smiles:
-    mol = Chem.MolFromSmiles(smiles)
-    if mol:
-        stability_score, logp, rot_bonds = estimate_stability(mol)
-
-        st.subheader("🔍 Stability Metrics")
-        st.write(f"**LogP:** {logp:.2f}")
-        st.write(f"**Rotatable Bonds:** {rot_bonds}")
-
-        st.subheader("📊 Stability Estimation")
-        if stability_score > 5:
-            st.success(f"✅ Chemical stability is likely good (Score: {stability_score:.2f})")
-        else:
-            st.warning(f"⚠️ Chemical stability may be low (Score: {stability_score:.2f})")
-    else:
-        st.error("❌ Invalid SMILES string.")
-import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import Descriptors
-import numpy as np
-import pickle
-
-st.title("🧬 QSAR Property Estimator")
-
-st.write("""
-Enter a SMILES string to predict a molecular property using a QSAR model.
-(Currently, this demo uses a mock prediction — replace with your trained model.)
-""")
-
-smiles = st.text_input("Enter SMILES:")
-
-def calculate_descriptors(mol):
-    # Calculate a few common molecular descriptors
-    return [
-        Descriptors.MolWt(mol),
-        Descriptors.MolLogP(mol),
-        Descriptors.NumHDonors(mol),
-        Descriptors.NumHAcceptors(mol)
-    ]
-
-# Uncomment and set your model path here once you have a real model
-# MODEL_PATH = "qsar_model.pkl"
-# with open(MODEL_PATH, "rb") as f:
-#     model = pickle.load(f)
-
-if smiles:
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        st.error("❌ Invalid SMILES string. Please enter a valid molecule.")
-    else:
-        descriptors = calculate_descriptors(mol)
-        st.subheader("Molecular Descriptors")
-        st.write(f"Molecular Weight: {descriptors[0]:.2f}")
-        st.write(f"LogP: {descriptors[1]:.2f}")
-        st.write(f"H-bond Donors: {descriptors[2]}")
-        st.write(f"H-bond Acceptors: {descriptors[3]}")
-
-        # MOCK prediction - replace with your model's predict method
-        predicted_property = np.random.uniform(0, 1)
-        st.subheader("Predicted Property (Mock)")
-        st.write(f"Value: {predicted_property:.3f}")
-
-        # Example usage with a real model:
-        # prediction = model.predict([descriptors])
-        # st.write(f"Predicted Property: {prediction[0]:.3f}")#  import streamlit as st
-import streamlit as st
-import pandas as pd
-from rdkit import Chem
-from rdkit.Chem import Descriptors
-import joblib
-
-# Load models once at the top
-toxicity_model = joblib.load('toxicity_model.pkl')
-sol_model = joblib.load('solubility_model.pkl')
-pic50_model = joblib.load('pic50_model.pkl')
-herg_model = joblib.load('herg_model.pkl')
-
-def get_descriptors(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    if mol:
-        return {
-            'MolWt': Descriptors.MolWt(mol),
-            'LogP': Descriptors.MolLogP(mol),
-            'TPSA': Descriptors.TPSA(mol),
-            'NumHDonors': Descriptors.NumHDonors(mol),
-            'NumHAcceptors': Descriptors.NumHAcceptors(mol),
-        }
-    else:
-        return None
-
-def batch_predict(df):
-    results = []
-    for smiles in df['SMILES']:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol:
-            desc = get_descriptors(smiles)
-            input_df = pd.DataFrame([desc])
-
-            tox_pred = toxicity_model.predict(input_df)[0]
-            tox_prob = toxicity_model.predict_proba(input_df)[0][1]
-
-            sol_pred = sol_model.predict(input_df)[0]
-
-            pic50_pred = pic50_model.predict(input_df)[0]
-
-            herg_pred = herg_model.predict(input_df)[0]
-            herg_prob = herg_model.predict_proba(input_df)[0][1]
-
-            results.append({
-                "SMILES": smiles,
-                "Toxicity": tox_pred,
-                "Toxicity_Prob": tox_prob,
-                "Solubility_LogS": sol_pred,
-                "pIC50": pic50_pred,
-                "hERG": herg_pred,
-                "hERG_Prob": herg_prob,
-            })
-        else:
-            results.append({
-                "SMILES": smiles,
-                "Toxicity": None,
-                "Toxicity_Prob": None,
-                "Solubility_LogS": None,
-                "pIC50": None,
-                "hERG": None,
-                "hERG_Prob": None,
-            })
-    return pd.DataFrame(results)
-
-import streamlit as st
-import pandas as pd
-from rdkit import Chem
-
-def batch_predict(df):
-    results = []
-    for smiles in df['SMILES']:
-        try:
-            mol = Chem.MolFromSmiles(smiles)
-            if mol:
-                # Replace ... with your actual prediction logic
-                # For example:
-                results.append({
-                    "SMILES": smiles,
-                    "Toxicity": "Predicted_value",  # placeholder
-                    # Add other prediction outputs here
-                })
-            else:
-                results.append({
-                    "SMILES": smiles,
-                    "Toxicity": None,
-                    # other fields None
-                })
-        except Exception as e:
-            results.append({
-                "SMILES": smiles,
-                "Error": str(e),
-            })
-    return pd.DataFrame(results)
-
-#
-
-import streamlit as st
-import joblib
-import pandas as pd
-from rdkit import Chem
-from rdkit.Chem import Descriptors
-
-# Load trained model
-model = joblib.load("toxicity_model.pkl")
-
-# Descriptor calculator
-def get_descriptors(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    return {
-        'MolWt': Descriptors.MolWt(mol),
-        'LogP': Descriptors.MolLogP(mol),
-        'TPSA': Descriptors.TPSA(mol),
-        'NumHDonors': Descriptors.NumHDonors(mol),
-        'NumHAcceptors': Descriptors.NumHAcceptors(mol),
-    }
-
-# Streamlit UI
-st.title("🧪 Toxicity Predictor (SR-MMP Assay)")
-
-smiles = st.text_input("Enter a SMILES string:")
-
-if st.button("Predict Toxicity"):
-    if Chem.MolFromSmiles(smiles):
-        desc = get_descriptors(smiles)
-        input_df = pd.DataFrame([desc])
-        result = model.predict(input_df)[0]
-        prob = model.predict_proba(input_df)[0][1]
-
-        if result == 1:
-            st.error(f"⚠️ Toxic with probability {prob:.2f}")
-        else:
-            st.success(f"✅ Non-toxic with probability {1 - prob:.2f}")
-    else:
-        st.warning("❌ Invalid SMILES string.")
-import joblib
-import pandas as pd
-from rdkit import Chem
-from rdkit.Chem import Descriptors
-
-# Load solubility model
-sol_model = joblib.load("solubility_model.pkl")
-
-# Descriptor generator
-def get_descriptors(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    return {
-        'MolWt': Descriptors.MolWt(mol),
-        'LogP': Descriptors.MolLogP(mol),
-        'TPSA': Descriptors.TPSA(mol),
-        'NumHDonors': Descriptors.NumHDonors(mol),
-        'NumHAcceptors': Descriptors.NumHAcceptors(mol),
-    }
-
-# 💧 Solubility UI
-st.subheader("💧 Solubility Predictor")
-
-smiles_input = st.text_input("Enter SMILES for Solubility Prediction")
-
-if st.button("Predict Solubility"):
-    try:
-        mol = Chem.MolFromSmiles(smiles_input)
-        if mol:
-            desc = get_descriptors(smiles_input)
-            input_df = pd.DataFrame([desc])
-            pred = sol_model.predict(input_df)[0]
-            st.success(f"📦 Predicted Log(Solubility): {pred:.2f}")
-        else:
-            st.warning("❌ Invalid SMILES format")
-    except Exception as e:
-        st.error(f"⚠️ Prediction failed: {e}")
-import joblib
-import pandas as pd
-from rdkit import Chem
-from rdkit.Chem import Descriptors
-
-# Load pIC50 model
-pic50_model = joblib.load("pic50_model.pkl")
-
-# Descriptor generator (if not already defined globally)
-def get_descriptors(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    return {
-        'MolWt': Descriptors.MolWt(mol),
-        'LogP': Descriptors.MolLogP(mol),
-        'TPSA': Descriptors.TPSA(mol),
-        'NumHDonors': Descriptors.NumHDonors(mol),
-        'NumHAcceptors': Descriptors.NumHAcceptors(mol),
-    }
-
-# 🧪 pIC50 Predictor
-st.subheader("🧪 pIC50 Activity Predictor")
-smiles_input = st.text_input("Enter SMILES to Predict pIC50")
-
-if st.button("Predict pIC50"):
-    try:
-        mol = Chem.MolFromSmiles(smiles_input)
-        if mol:
-            desc = get_descriptors(smiles_input)
-            input_df = pd.DataFrame([desc])
-            prediction = pic50_model.predict(input_df)[0]
-            st.success(f"📈 Predicted pIC50: {prediction:.2f}")
-        else:
-            st.warning("❌ Invalid SMILES format")
-    except Exception as e:
-        st.error(f"⚠️ Prediction failed: {e}")
-import streamlit as st
-import pandas as pd
-from rdkit import Chem
-from rdkit.Chem import Descriptors, Draw
-import joblib
-
-# Load trained models
-toxicity_model = joblib.load('toxicity_model.pkl')
-sol_model = joblib.load('solubility_model.pkl')
-pic50_model = joblib.load('pic50_model.pkl')
-herg_model = joblib.load('herg_model.pkl')
-
-# Custom dark/light mode toggle (simulated)
-mode = st.sidebar.radio("Choose Theme", ["🌙 Dark Mode", "☀️ Light Mode"], key="theme_selector")
-
-if mode == "🌙 Dark Mode":
-    st.markdown("""
-        <style>
-            body, .stApp {
-                background-color: #0E1117;
-                color: #FAFAFA;
-            }
-            .stTextInput > div > div > input {
-                background-color: #262730;
-                color: #FAFAFA;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-        <style>
-            body, .stApp {
-                background-color: #FFFFFF;
-                color: #000000;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
-st.title("🧪 StereoAI: Smart Molecular Property Predictor")
-
-# Helper function to compute descriptors
-def get_descriptors(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    if mol:
-        return {
-            'MolWt': Descriptors.MolWt(mol),
-            'LogP': Descriptors.MolLogP(mol),
-            'TPSA': Descriptors.TPSA(mol),
-            'NumHDonors': Descriptors.NumHDonors(mol),
-            'NumHAcceptors': Descriptors.NumHAcceptors(mol),
-        }
-    else:
-        return None
-
-# Setup Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["⚠️ Toxicity", "💧 Solubility", "📊 pIC50", "🧬 hERG Cardiotoxicity", "💊 Lipinski Rule Checker"])
-
-with tab1:
-    st.header("Toxicity Predictor")
-    smiles = st.text_input("Enter SMILES for Toxicity Prediction", key="tox_input")
-    if smiles:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol:
-            st.image(Draw.MolToImage(mol), caption="Molecule Structure")
-            desc = get_descriptors(smiles)
-            if desc:
-                df = pd.DataFrame([desc])
-                pred = toxicity_model.predict(df)[0]
-                prob = toxicity_model.predict_proba(df)[0][1]
-
-                st.write("Prediction:", "Toxic" if pred else "Non-toxic")
-                st.progress(prob)
-                if prob > 0.7:
-                    st.markdown(f"**🔴 High Risk:** {prob:.2f}", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"**🟢 Low Risk:** {prob:.2f}", unsafe_allow_html=True)
-        else:
-            st.error("❌ Invalid SMILES")
-
-with tab2:
-    st.header("Solubility Estimator")
-    smiles2 = st.text_input("Enter SMILES for Solubility Prediction", key="sol_input")
-    if smiles2:
-        mol = Chem.MolFromSmiles(smiles2)
-        if mol:
-            st.image(Draw.MolToImage(mol), caption="Molecule Structure")
-            desc = get_descriptors(smiles2)
-            if desc:
-                df = pd.DataFrame([desc])
-                sol = sol_model.predict(df)[0]
-                st.success(f"📦 Predicted Log(Solubility): {sol:.2f}")
-
-with tab3:
-    st.header("pIC50 QSAR Predictor")
-    smiles3 = st.text_input("Enter SMILES for pIC50 Prediction", key="pic50_input")
-    if smiles3:
-        mol = Chem.MolFromSmiles(smiles3)
-        if mol:
-            st.image(Draw.MolToImage(mol), caption="Molecule Structure")
-            desc = get_descriptors(smiles3)
-            if desc:
-                df = pd.DataFrame([desc])
-                prediction = pic50_model.predict(df)[0]
-                st.info(f"🔬 Predicted pIC50: {prediction:.2f}")
-
-with tab4:
-    st.header("hERG Cardiotoxicity Predictor")
-    smiles4 = st.text_input("Enter SMILES for hERG Prediction", key="herg_input")
-    if smiles4:
-        mol = Chem.MolFromSmiles(smiles4)
-        if mol:
-            st.image(Draw.MolToImage(mol), caption="Molecule Structure")
-            desc = get_descriptors(smiles4)
-            if desc:
-                df = pd.DataFrame([desc])
-                pred = herg_model.predict(df)[0]
-                prob = herg_model.predict_proba(df)[0][1]
-                if pred:
-                    st.error(f"☠️ Likely Blocker (Toxic) — Risk Score: {prob:.2f}")
-                else:
-                    st.success(f"✅ Likely Safe (Non-blocker) — Risk Score: {prob:.2f}")
-                st.progress(prob)
-
-with tab5:
-    st.header("Lipinski Rule of Five Checker")
-    smiles5 = st.text_input("Enter SMILES to check drug-likeness", key="lipinski_input")
-    if smiles5:
-        mol = Chem.MolFromSmiles(smiles5)
-        if mol:
-            st.image(Draw.MolToImage(mol), caption="Molecule Structure")
-            desc = get_descriptors(smiles5)
-            if desc:
-                st.write("### Lipinski's Rule Results:")
-                st.write(f"Molecular Weight: {desc['MolWt']:.2f} — {'✔️' if desc['MolWt'] <= 500 else '❌'}")
-                st.write(f"LogP: {desc['LogP']:.2f} — {'✔️' if desc['LogP'] <= 5 else '❌'}")
-                st.write(f"H-bond Donors: {desc['NumHDonors']} — {'✔️' if desc['NumHDonors'] <= 5 else '❌'}")
-                st.write(f"H-bond Acceptors: {desc['NumHAcceptors']} — {'✔️' if desc['NumHAcceptors'] <= 10 else '❌'}")
-
-                all_passed = (desc['MolWt'] <= 500 and desc['LogP'] <= 5 and
-                              desc['NumHDonors'] <= 5 and desc['NumHAcceptors'] <= 10)
-                if all_passed:
-                    st.success("✅ Likely Orally Bioavailable (Passes Lipinski's Rule)")
-                else:
-                    st.warning("⚠️ May Violate Drug-Likeness Rules")
-        else:
-            st.error("❌ Invalid SMILES")
-import streamlit as st
-from rdkit import Chem
-from rdkit.Chem import Draw, Descriptors
-import pandas as pd
-import joblib
-
-# Load your trained models
-toxicity_model = joblib.load('toxicity_model.pkl')
-sol_model = joblib.load('solubility_model.pkl')
-pic50_model = joblib.load('pic50_model.pkl')
-herg_model = joblib.load('herg_model.pkl')
-
-# Descriptor generator
-def get_descriptors(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    if mol:
-        return {
-            'MolWt': Descriptors.MolWt(mol),
-            'LogP': Descriptors.MolLogP(mol),
-            'TPSA': Descriptors.TPSA(mol),
-            'NumHDonors': Descriptors.NumHDonors(mol),
-            'NumHAcceptors': Descriptors.NumHAcceptors(mol)
-        }
-    return None
-
-# Simple SMILES extractor from input
-def extract_smiles(text):
-    tokens = text.split()
-    for token in tokens:
-        if Chem.MolFromSmiles(token):
-            return token
-    return None
-
-# Chat session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-st.title("💬 StereoAI Chat Assistant")
-
-# Chat input
-user_input = st.chat_input("Ask about toxicity, solubility, pIC50, or hERG")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-
-    smiles = extract_smiles(user_input)
-    if not smiles:
-        st.session_state.messages.append({"role": "assistant", "content": "❌ No valid SMILES found in your message."})
-    else:
-        mol = Chem.MolFromSmiles(smiles)
-        desc = get_descriptors(smiles)
-        img = Draw.MolToImage(mol)
-
-        # Default response
-        response = f"Here's what I found for **{smiles}**:\n"
-
-        # Predict toxicity
-        if "toxic" in user_input.lower():
-            df = pd.DataFrame([desc])
-            pred = toxicity_model.predict(df)[0]
-            prob = toxicity_model.predict_proba(df)[0][1]
-            response += f"\n☠️ Toxicity: {'Toxic' if pred else 'Non-toxic'} (Confidence: {prob:.2f})"
-
-        # Predict solubility
-        if "solubility" in user_input.lower():
-            df = pd.DataFrame([desc])
-            sol = sol_model.predict(df)[0]
-            response += f"\n💧 Solubility (logS): {sol:.2f}"
-
-        # Predict pIC50
-        if "pic50" in user_input.lower():
-            df = pd.DataFrame([desc])
-            pic50 = pic50_model.predict(df)[0]
-            response += f"\n📊 pIC50: {pic50:.2f}"
-
-        # Predict hERG
-        if "herg" in user_input.lower():
-            df = pd.DataFrame([desc])
-            pred = herg_model.predict(df)[0]
-            prob = herg_model.predict_proba(df)[0][1]
-            result = "Blocker ☠️" if pred else "Non-blocker ✅"
-            response += f"\n🧬 hERG Prediction: {result} (Risk Score: {prob:.2f})"
-
-        # Add to message history
-        st.session_state.messages.append({"role": "assistant", "content": response, "image": img})
-
-# Render chat
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-        if "image" in msg:
-            st.image(msg["image"], caption="Molecule Structure")
+        st.error(f"⚠️ Error in analysis: {e}")
+        st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; color: grey;'>"
+    "🔬 Developed by <b>Shahid Ul Hassan</b> | 🚀 Powered by RDKit & Streamlit"
+    "</div>",
+    unsafe_allow_html=True
+)
